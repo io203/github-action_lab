@@ -1,35 +1,41 @@
 name: github-action_lab Build 
 
+# 이 부분이 반드시 살아있어야 합니다!
 on:
   push:
     branches:
       - develop
-
+    tags:
+      - 'RB*'
 
 jobs:
+  # 1. 통합 빌드 (공통)
   build:
     runs-on: [self-hosted, g-runner]
-
     steps:
       - name: Check out code
         uses: actions/checkout@v4
-      - name: maven build 
-        run: |      
-          ./mvnw clean package -DskipTests
-      # 빌드된 파일을 아티팩트로 저장 (다음 job에서 쓰기 위함)
-      - uses: actions/upload-artifact@v4
+
+      - name: Maven build
+        run: ./mvnw clean package -DskipTests
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
         with:
           name: build-artifact
           path: target/*.jar
+          retention-days: 1 # 배포용이므로 오래 보관할 필요 없음
 
-  deploy:
+  deploy-dev:
     needs: build
+    if: github.ref == 'refs/heads/develop'
     runs-on: [self-hosted, g-runner]
     strategy:
       # 중요: max-parallel을 1로 설정하면 1대씩 순차 배포합니다.
       max-parallel: 1
       matrix:
-        server: [192.168.41.26, 192.168.41.25]
+        server: 
+          - 192.168.41.26 ## test-vm1 dev-server
 
     steps:
       - name: 빌드 결과물 가져오기
@@ -45,7 +51,6 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
 
       - name: ${{ matrix.server }} 서버로 전송 (SCP)
-        # run: scp target/*.jar vagrant@${{ matrix.server }}:/home/vagrant/app/app.jar
         # scp -o StrictHostKeyChecking=no 옵션이 핵심입니다. (yes/no 묻지 않음)
         run: |
           # 1. 원격 서버에 폴더가 없으면 생성 (-p 옵션은 이미 있어도 에러 안 남)
@@ -73,4 +78,50 @@ jobs:
             done
             echo "Deployment Failed!"
             exit 1
+          EOF
+
+  deploy-prod:
+    needs: build
+    # 태그가 'v'로 시작할 때만 운영 배포 실행
+    if: startsWith(github.ref, 'refs/tags/RB')
+    runs-on: [self-hosted, g-runner]
+    strategy:
+      max-parallel: 1
+      matrix:
+        server: 
+          - 192.168.41.25 ## test-vm2 prod server
+
+    steps:
+      - name: 빌드 결과물 가져오기
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifact
+          path: target/
+
+      - name: SSH 키 설정
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: ${{ matrix.server }} 서버로 전송 (SCP)
+        # scp -o StrictHostKeyChecking=no 옵션이 핵심입니다. (yes/no 묻지 않음)
+        run: |
+          # 1. 원격 서버에 폴더가 없으면 생성 (-p 옵션은 이미 있어도 에러 안 남)
+          ssh -o StrictHostKeyChecking=no vagrant@${{ matrix.server }} "mkdir -p /home/vagrant/app"
+          scp -o StrictHostKeyChecking=no target/*.jar vagrant@${{ matrix.server }}:/home/vagrant/app/app.jar
+
+
+      - name: 운영 서버 재시작 (SSH)
+        run: |
+          ssh vagrant@${{ matrix.server }} << 'EOF'
+            fuser -k 8080/tcp || true
+            sleep 5
+            
+            # 운영 프로파일(prod) 적용
+            nohup /home/vagrant/.sdkman/candidates/java/current/bin/java \
+                  -Dspring.profiles.active=prod \
+                  -jar /home/vagrant/app/app.jar > /home/vagrant/app/app.log 2>&1 &
+            
+            # 헬스 체크 로직 생략 (동일하게 유지)
           EOF

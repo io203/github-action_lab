@@ -1,1 +1,2 @@
 GET http://192.168.41.26:8080/api/version
+GET http://192.168.41.25:8080/api/hello
