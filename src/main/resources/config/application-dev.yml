@@ -1,0 +1,19 @@
+##############
+### dev
+##############
+
+server:
+<<<<<<< HEAD
+ port: 8080 
+
+ 
+
+      
+=======
+  port: 8080
+
+spring:
+  application:
+    name: simple-api # 서비스 이름 설정 유지
+
+>>>>>>> 8b4aed91c940e003238b5fd7c4d635a5f4ad1e82
