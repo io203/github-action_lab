@@ -48,6 +48,8 @@ jobs:
         # run: scp target/*.jar vagrant@${{ matrix.server }}:/home/vagrant/app/app.jar
         # scp -o StrictHostKeyChecking=no 옵션이 핵심입니다. (yes/no 묻지 않음)
         run: |
+          # 1. 원격 서버에 폴더가 없으면 생성 (-p 옵션은 이미 있어도 에러 안 남)
+          ssh -o StrictHostKeyChecking=no vagrant@${{ matrix.server }} "mkdir -p /home/vagrant/app"
           scp -o StrictHostKeyChecking=no target/*.jar vagrant@${{ matrix.server }}:/home/vagrant/app/app.jar
 
       - name: ${{ matrix.server }} 서버 재시작 (SSH)
