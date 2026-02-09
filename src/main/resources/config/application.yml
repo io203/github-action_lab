@@ -1,20 +1,11 @@
 #############
 ### 공통 
 ##############
-<<<<<<< HEAD
-# embeded tomcat
-server:  
-  tomcat:
-    uri-encoding: UTF-8  
-spring:
-  profiles:
-    active: local
-    
-=======
+
 
 spring:
   application:
-    name: simple-api
+    name: github-action_lab
   profiles:
     active: local
   banner:
@@ -25,11 +16,7 @@ app-info:
     version: '@project.version@'
     timestamp: '@app.build.timestamp@'
 
-# logging:
-#   config: "classpath:logback-${spring.profiles.active}.xml"
->>>>>>> 8b4aed91c940e003238b5fd7c4d635a5f4ad1e82
 
- 
   
  
   
