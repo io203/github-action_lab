@@ -10,7 +10,7 @@ env:
   JIB_TO_AUTH_USERNAME: ${{ secrets.DOCKER_USER }}
   JIB_TO_AUTH_PASSWORD: ${{ secrets.DOCKER_PWD }}
 
-  
+
 jobs:
   build:
     runs-on: [self-hosted, g-runner]
@@ -22,9 +22,7 @@ jobs:
         run: |
           export IMAGE_TAG="${CI_COMMIT_BRANCH}-$(TZ='Asia/Seoul' date +'%Y%m%d-%H%M%S')"
           echo "IMAGE_TAG=$IMAGE_TAG" >> build_tag.env
-          skaffold build -p dev -t "$IMAGE_TAG" -- \
-          -Djib.to.auth.username=${{ secrets.DOCKER_USER }} \
-          -Djib.to.auth.password=${{ secrets.DOCKER_PWD }}
+          skaffold build -p dev -t "$IMAGE_TAG"
       - name: 빌드 결과 파일 보관
         uses: actions/upload-artifact@v4
         with:
