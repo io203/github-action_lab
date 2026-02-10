@@ -1,6 +1,5 @@
 name: github-action_lab Build 
 
-# 이 부분이 반드시 살아있어야 합니다!
 on:
   push:
     branches:
@@ -82,7 +81,7 @@ jobs:
 
   deploy-prod:
     needs: build
-    # 태그가 'v'로 시작할 때만 운영 배포 실행
+    # 태그가 'RB'로 시작할 때만 운영 배포 실행
     if: startsWith(github.ref, 'refs/tags/RB')
     runs-on: [self-hosted, g-runner]
     strategy:
@@ -123,5 +122,15 @@ jobs:
                   -Dspring.profiles.active=prod \
                   -jar /home/vagrant/app/app.jar > /home/vagrant/app/app.log 2>&1 &
             
-            # 헬스 체크 로직 생략 (동일하게 유지)
+            # 3. 헬스 체크 (정상 기동될 때까지 대기 - 최대 60초)
+            for i in {1..12}; do
+              if curl -s http://localhost:8080/actuator/health | grep "UP"; then
+                echo "App is UP!"
+                exit 0
+              fi
+              echo "Waiting for app to start..."
+              sleep 5
+            done
+            echo "Deployment Failed!"
+            exit 1
           EOF
