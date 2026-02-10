@@ -25,7 +25,7 @@ jobs:
                                         https://maven.apache.org/xsd/settings-1.0.0.xsd">
             <servers>
               <server>
-                <id>docker.io</id>
+                <id>registry-1.docker.io</id>
                 <username>${{ secrets.DOCKER_USER }}</username>
                 <password>${{ secrets.DOCKER_PWD }}</password>
               </server>
