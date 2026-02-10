@@ -14,17 +14,31 @@ env:
 jobs:
   build:
     runs-on: [self-hosted, g-runner]
-    container:
-      image: saturn203/build-ubuntu-jdk21-maven-node-skaffold-git:v1.0.2
+    # container:
+    #   image: saturn203/build-ubuntu-jdk21-maven-node-skaffold-git:v1.0.2
     steps:
       - name: Check out code
-        uses: actions/checkout@v3  ## actions/checkout@v4에서 actions/checkout@v3 으로 내렸다
-    
-      - name: Skaffold build (dev profile)
+        uses: actions/checkout@v4  ## actions/checkout@v4에서 actions/checkout@v3 으로 내렸다
+      - name: 빌드 컨테이너에서 Skaffold 실행
         run: |
-          export IMAGE_TAG="${CI_COMMIT_BRANCH}-$(TZ='Asia/Seoul' date +'%Y%m%d-%H%M%S')"
-          echo "IMAGE_TAG=$IMAGE_TAG" >> build_tag.env
-          skaffold build -p dev -t $IMAGE_TAG 
+          # container: 대신 docker run을 통해 이미지를 사용합니다.
+          # 현재 디렉토리를 컨테이너 안으로 마운트하여 빌드합니다.
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v $(pwd):/app -w /app \
+            -e DOCKER_USER=${{ secrets.DOCKER_USER }} \
+            -e DOCKER_PWD=${{ secrets.DOCKER_PWD }} \
+            saturn203/build-ubuntu-jdk21-maven-node-skaffold-git:v1.0.2 \
+            sh -c "export JIB_OPTS='-Djib.to.auth.username=$DOCKER_USER -Djib.to.auth.password=$DOCKER_PWD' && \
+                   IMAGE_TAG=${GITHUB_REF_NAME}-$(date +'%Y%m%d-%H%M%S') && \
+                   echo IMAGE_TAG=\$IMAGE_TAG > build_tag.env && \
+                   skaffold build -p dev -t \$IMAGE_TAG"
+    
+      # - name: Skaffold build (dev profile)
+      #   run: |
+      #     export IMAGE_TAG="${CI_COMMIT_BRANCH}-$(TZ='Asia/Seoul' date +'%Y%m%d-%H%M%S')"
+      #     echo "IMAGE_TAG=$IMAGE_TAG" >> build_tag.env
+      #     skaffold build -p dev -t $IMAGE_TAG 
       - name: 빌드 결과 파일 보관
         uses: actions/upload-artifact@v4
         with:
