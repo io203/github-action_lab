@@ -19,7 +19,7 @@ jobs:
       image: saturn203/build-ubuntu-jdk21-maven-node-skaffold-git:v1.0.0
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
     
       - name: Skaffold build (dev profile)
         run: |
