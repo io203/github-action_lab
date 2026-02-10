@@ -32,6 +32,9 @@ jobs:
             </servers>
           </settings>
           EOF
+      - name: debug
+        run: |
+          cat ~/.m2/settings.xml
 
       - name: Skaffold build (dev profile)
         run: |
