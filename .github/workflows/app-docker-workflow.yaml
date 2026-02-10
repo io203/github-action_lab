@@ -9,7 +9,6 @@ on:
 env:
   JIB_OPTS: "-Djib.to.auth.username=${{ secrets.DOCKER_USER }} -Djib.to.auth.password=${{ secrets.DOCKER_PWD }}"
 
-
 jobs:
   build:
     runs-on: [self-hosted, g-runner]
