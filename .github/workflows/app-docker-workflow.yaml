@@ -6,7 +6,11 @@ on:
       - develop
     tags:
       - 'RB*'
+env:
+  JIB_TO_AUTH_USERNAME: ${{ secrets.DOCKER_USER }}
+  JIB_TO_AUTH_PASSWORD: ${{ secrets.DOCKER_PWD }}
 
+  
 jobs:
   build:
     runs-on: [self-hosted, g-runner]
