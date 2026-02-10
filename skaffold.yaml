@@ -13,5 +13,5 @@ profiles:
               - -DskipTests
               - "-Djib.container.environment=SPRING_PROFILES_ACTIVE=dev"
             # fromImage: eclipse-temurin:17.0.2_8-jre
-            fromImage: eclipse-temurin:21-jre
+            fromImage: eclipse-temurin:21.0.3_9-jre
     
