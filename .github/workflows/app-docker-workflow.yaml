@@ -6,8 +6,6 @@ on:
       - develop
     tags:
       - 'RB*'
-env:
-  JIB_OPTS: "-Djib.to.auth.username=${{ secrets.DOCKER_USER }} -Djib.to.auth.password=${{ secrets.DOCKER_PWD }}"
 
 jobs:
   build:
@@ -82,14 +80,17 @@ jobs:
           ssh vagrant@${{ matrix.server }} "mkdir -p ~/app"
           # 2. 저장소에 있는 docker-compose.yml 전송 
           scp docker-compose.yml vagrant@${{ matrix.server }}:~/app/docker-compose.yml
+
+          echo 
           
           # 2. 원격 서버에서 Docker 빌드 및 실행
           ssh vagrant@${{ matrix.server }} << 'EOF'
             cd ~/app
+            
 
             export IMAGE_NAME="saturn203/github-action_lab:${{ env.IMAGE_TAG }}"
             # 기존 컨테이너 중지 및 삭제 후 재시작 (docker-compose 사용 시)
-            docker-compose up -d --force-recreate
+            docker compose up -d --force-recreate
             docker image prune -f
 
             # 헬스 체크
