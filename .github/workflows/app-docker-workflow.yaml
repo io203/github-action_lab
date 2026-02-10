@@ -15,7 +15,7 @@ jobs:
   build:
     runs-on: [self-hosted, g-runner]
     container:
-      image: saturn203/build-ubuntu-jdk21-maven-node-skaffold-git:v1.0.2
+      image: saturn203/build-ubuntu-jdk21-maven-node-skaffold-git:v1.0.3
       options: --privileged
       volumes:
         - /var/run/docker.sock:/var/run/docker.sock
