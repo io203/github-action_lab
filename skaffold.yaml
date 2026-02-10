@@ -6,6 +6,7 @@ profiles:
     build:
       local:
         push: true
+        useDockerCLI: false
         tryImportMissing: false
       artifacts:
         - image: saturn203/github-action_lab
