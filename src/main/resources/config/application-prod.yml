@@ -1,0 +1,16 @@
+##############
+### prod
+##############
+
+server:
+  port: 8080
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # 모든 엔드포인트를 열어줍니다. (실무에서는 필요한 것만 나열하는 것이 좋습니다)
+        include: "*" 
+
+

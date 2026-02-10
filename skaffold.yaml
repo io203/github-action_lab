@@ -15,4 +15,17 @@ profiles:
               - "-Djib.container.environment=SPRING_PROFILES_ACTIVE=dev"
             # fromImage: eclipse-temurin:17.0.2_8-jre
             fromImage: eclipse-temurin:21.0.3_9-jre
+  - name: prod
+    build:
+      local:
+        push: true
+      
+      artifacts:
+        - image: saturn203/github-action_lab
+          jib:
+            args:
+              - -DskipTests
+              - "-Djib.container.environment=SPRING_PROFILES_ACTIVE=prod"
+            # fromImage: eclipse-temurin:17.0.2_8-jre
+            fromImage: eclipse-temurin:21.0.3_9-jre
     
