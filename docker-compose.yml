@@ -1,6 +1,6 @@
 services:
   my-app:
-    image: saturn203/github-action_lab
+    image: ${IMAGE_NAME}
     container_name: github-action_lab
     ports:
       - "8080:8080"
