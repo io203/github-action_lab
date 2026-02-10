@@ -23,11 +23,6 @@ jobs:
                                         https://maven.apache.org/xsd/settings-1.0.0.xsd">
             <servers>
               <server>
-                <id>docker.io</id>
-                <username>${{ secrets.DOCKER_USER }}</username>
-                <password>${{ secrets.DOCKER_PWD }}</password>
-              </server>
-              <server>
                 <id>registry-1.docker.io</id>
                 <username>${{ secrets.DOCKER_USER }}</username>
                 <password>${{ secrets.DOCKER_PWD }}</password>
@@ -43,7 +38,7 @@ jobs:
         run: |
           export IMAGE_TAG="${GITHUB_REF_NAME}-$(TZ='Asia/Seoul' date +'%Y%m%d-%H%M%S')"
           echo "IMAGE_TAG=$IMAGE_TAG" >> build_tag.env
-          skaffold build -p dev -t "$IMAGE_TAG"
+          skaffold build -p dev -t $IMAGE_TAG
       - name: 빌드 결과 파일 보관
         uses: actions/upload-artifact@v4
         with:
