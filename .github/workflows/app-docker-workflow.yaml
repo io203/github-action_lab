@@ -16,9 +16,6 @@ jobs:
     runs-on: [self-hosted, g-runner]
     container:
       image: saturn203/build-ubuntu-jdk21-maven-node-skaffold-git:v1.0.3
-      options: --privileged
-      volumes:
-        - /var/run/docker.sock:/var/run/docker.sock
     steps:
       - name: Check out code
         uses: actions/checkout@v3  ## actions/checkout@v4에서 actions/checkout@v3 으로 내렸다
