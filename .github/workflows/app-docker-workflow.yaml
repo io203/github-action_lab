@@ -1,103 +1,55 @@
-name: github-action_lab Build 
+name: github-action_lab Build (Target Docker)
 
 on:
   push:
     branches:
       - develop
     tags:
-      - 'RB*' # RB1.0.0 등 태그 push 시 작동
+      - 'RB*'
+
+
+env:
+  # JIB_OPTS 정의
+  JIB_OPTS: "-Djib.to.auth.username=${{ secrets.DOCKER_USER }} -Djib.to.auth.password=${{ secrets.DOCKER_PWD }}"
 
 jobs:
-  # 1. 통합 빌드 (공통)
   build:
     runs-on: [self-hosted, g-runner]
+    container:
+      image: saturn203/alpine-jdk21-maven-skaffold-node:v1
     steps:
       - name: Check out code
         uses: actions/checkout@v4
-
-      # Runner 컨테이너 내부에 JDK가 없을 경우를 대비 (필요한 버전 지정)
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: 'maven'
-
-      - name: Maven build
-        run: ./mvnw clean package -DskipTests
-
-      - name: Upload Build Artifact
+    
+      - name: Skaffold build (dev profile)
+        run: |
+          export IMAGE_TAG="${CI_COMMIT_BRANCH}-$(TZ='Asia/Seoul' date +'%Y%m%d-%H%M%S')"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> build_tag.env
+          skaffold build -p dev -t $IMAGE_TAG 
+      - name: 빌드 결과 파일 보관
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifact
-          path: target/*.jar
-          retention-days: 1
+          name: build-metadata
+          path: build_tag.env
 
-  # 2. 개발 환경 배포 (develop 브랜치)
   deploy-dev:
     needs: build
     if: github.ref == 'refs/heads/develop'
     runs-on: [self-hosted, g-runner]
     strategy:
-      max-parallel: 1
       matrix:
-        server: [192.168.41.26] # test-vm1
-
+        server: [192.168.41.26]
     steps:
-      - name: 빌드 결과물 가져오기
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifact
-          path: target/
-
-      - name: SSH 키 설정
+      - name: 태그 추출 및 환경변수 등록
+        id: get_tag
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          # SSH 접속 시 yes/no 묻지 않도록 설정 추가
-          echo "StrictHostKeyChecking no" >> ~/.ssh/config
-
-      - name: ${{ matrix.server }} 서버로 전송 (SCP)
-        run: |
-          ssh vagrant@${{ matrix.server }} "mkdir -p /home/vagrant/app"
-          scp target/*.jar vagrant@${{ matrix.server }}:/home/vagrant/app/app.jar
-
-      - name: ${{ matrix.server }} 서버 재시작 (SSH)
-        run: |
-          ssh vagrant@${{ matrix.server }} << 'EOF'
-            fuser -k 8080/tcp || true
-            sleep 5
-            nohup /home/vagrant/.sdkman/candidates/java/current/bin/java -Dspring.profiles.active=dev -jar /home/vagrant/app/app.jar > /home/vagrant/app/app.log 2>&1 &
-            
-            for i in {1..12}; do
-              if curl -s http://localhost:8080/actuator/health | grep "UP"; then
-                echo "App is UP!"
-                exit 0
-              fi
-              echo "Waiting for app to start..."
-              sleep 5
-            done
-            exit 1
-          EOF
-
-  # 3. 운영 환경 배포 (RB* 태그)
-  deploy-prod:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/RB')
-    runs-on: [self-hosted, g-runner]
-    strategy:
-      max-parallel: 1
-      matrix:
-        server: [192.168.41.25] # test-vm2
-
-    steps:
-      - name: 빌드 결과물 가져오기
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifact
-          path: target/
-
+          # 파일 내용을 읽어 GitHub 환경변수에 등록
+          # build_tag.env 내용이 IMAGE_TAG=... 형태라고 가정
+          cat build_tag.env >> $GITHUB_ENV
+          
+          # 확인용 (로그에 찍힘)
+          source build_tag.env
+          echo "추출된 태그는 $IMAGE_TAG 입니다."
       - name: SSH 키 설정
         run: |
           mkdir -p ~/.ssh
@@ -105,24 +57,28 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           echo "StrictHostKeyChecking no" >> ~/.ssh/config
 
-      - name: ${{ matrix.server }} 서버로 전송 (SCP)
+      - name: ${{ matrix.server }} 서버로 전송 및 Docker 배포
         run: |
-          ssh vagrant@${{ matrix.server }} "mkdir -p /home/vagrant/app"
-          scp target/*.jar vagrant@${{ matrix.server }}:/home/vagrant/app/app.jar
-
-      - name: 운영 서버 재시작 (SSH)
-        run: |
+          # 1. 원격 서버에 JAR 파일과 Dockerfile 전송
+          ssh vagrant@${{ matrix.server }} "mkdir -p ~/app"
+          # 2. 저장소에 있는 docker-compose.yml 전송 
+          scp docker-compose.yml vagrant@${{ matrix.server }}:~/app/docker-compose.yml
+          
+          # 2. 원격 서버에서 Docker 빌드 및 실행
           ssh vagrant@${{ matrix.server }} << 'EOF'
-            fuser -k 8080/tcp || true
-            sleep 5
-            nohup /home/vagrant/.sdkman/candidates/java/current/bin/java -Dspring.profiles.active=prod -jar /home/vagrant/app/app.jar > /home/vagrant/app/app.log 2>&1 &
+            cd ~/app
             
+            export IMAGE_NAME="saturn203/github-action_lab:${{ env.IMAGE_TAG }}"
+            # 기존 컨테이너 중지 및 삭제 후 재시작 (docker-compose 사용 시)
+            docker-compose up -d --force-recreate
+            docker image prune -f
+
+            # 헬스 체크
             for i in {1..12}; do
               if curl -s http://localhost:8080/actuator/health | grep "UP"; then
-                echo "App is UP!"
+                echo "App is UP in Docker!"
                 exit 0
               fi
-              echo "Waiting for app to start..."
               sleep 5
             done
             exit 1
