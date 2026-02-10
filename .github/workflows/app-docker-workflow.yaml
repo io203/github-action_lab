@@ -7,16 +7,17 @@ on:
     tags:
       - 'RB*'
 
-env:
-  # JIB_OPTS 정의
-  JIB_OPTS: "-Djib.to.auth.username=${{ secrets.DOCKER_USER }} -Djib.to.auth.password=${{ secrets.DOCKER_PWD }}"
-
 jobs:
   build:
     runs-on: [self-hosted, g-runner]
     steps:
       - name: Check out code
         uses: actions/checkout@v4  
+      - name: Docker Hub login
+        run: |
+          echo "${{ secrets.DOCKER_PWD }}" | docker login \
+            -u "${{ secrets.DOCKER_USER }}" \
+            --password-stdin
 
       - name: Skaffold build (dev profile)
         run: |
