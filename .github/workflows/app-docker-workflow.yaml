@@ -16,7 +16,7 @@ jobs:
   build:
     runs-on: [self-hosted, g-runner]
     container:
-      image: saturn203/alpine-jdk21-maven-skaffold-node:v1
+      image: saturn203/build-jdk21-maven-node-skaffold-git:v1.0.0
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -40,6 +40,10 @@ jobs:
       matrix:
         server: [192.168.41.26]
     steps:
+      - name: 아티팩트 다운로드 (이 단계가 꼭 필요합니다)
+        uses: actions/download-artifact@v4
+        with:
+          name: build-metadata
       - name: 태그 추출 및 환경변수 등록
         id: get_tag
         run: |
@@ -67,7 +71,7 @@ jobs:
           # 2. 원격 서버에서 Docker 빌드 및 실행
           ssh vagrant@${{ matrix.server }} << 'EOF'
             cd ~/app
-            
+
             export IMAGE_NAME="saturn203/github-action_lab:${{ env.IMAGE_TAG }}"
             # 기존 컨테이너 중지 및 삭제 후 재시작 (docker-compose 사용 시)
             docker-compose up -d --force-recreate
