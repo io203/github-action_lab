@@ -7,8 +7,7 @@ on:
     tags:
       - 'RB*'
 env:
-  JIB_TO_AUTH_USERNAME: ${{ secrets.DOCKER_USER }}
-  JIB_TO_AUTH_PASSWORD: ${{ secrets.DOCKER_PWD }}
+  JIB_OPTS: "-Djib.to.auth.username=${{ secrets.DOCKER_USER }} -Djib.to.auth.password=${{ secrets.DOCKER_PWD }}"
 
 
 jobs:
@@ -20,7 +19,7 @@ jobs:
 
       - name: Skaffold build (dev profile)
         run: |
-          export IMAGE_TAG="${CI_COMMIT_BRANCH}-$(TZ='Asia/Seoul' date +'%Y%m%d-%H%M%S')"
+          export IMAGE_TAG="${GITHUB_REF_NAME}-$(TZ='Asia/Seoul' date +'%Y%m%d-%H%M%S')"
           echo "IMAGE_TAG=$IMAGE_TAG" >> build_tag.env
           skaffold build -p dev -t "$IMAGE_TAG"
       - name: 빌드 결과 파일 보관
