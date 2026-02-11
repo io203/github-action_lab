@@ -61,7 +61,7 @@ jobs:
           # 다른 저장소에 푸시하기 위해 Personal Access Token(PAT) 필요
           token: ${{ secrets.GITOPS_TOKEN }} 
           ref: 'main'
-      - name: 아티팩트 다운로드 (이 단계가 꼭 필요합니다)
+      - name: 아티팩트 다운로드 
         uses: actions/download-artifact@v4
         with:
           name: build-metadata
@@ -74,7 +74,7 @@ jobs:
           
           # 확인용 (로그에 찍힘)
           source build_tag.env
-          echo "추출된 태그는 $IMAGE_TAG 입니다.
+          echo "추출된 태그는 $IMAGE_TAG 입니다."
 
       - name: Update Kustomization
         run: |
