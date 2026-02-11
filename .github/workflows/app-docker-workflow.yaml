@@ -28,6 +28,7 @@ jobs:
       #     </settings>
       #     EOF
 
+
       - name: Skaffold build (dev profile)
         env:
           MAVEN_OPTS: "-Djib.to.auth.username=${{ secrets.DOCKER_USER }} -Djib.to.auth.password=${{ secrets.DOCKER_PWD }}"
@@ -47,7 +48,7 @@ jobs:
           echo "IMAGE_TAG=${IMAGE_TAG}"
           echo "IMAGE_TAG=$IMAGE_TAG" >> build_tag.env
           skaffold build --cache-artifacts=false -p dev -t $IMAGE_TAG
-          
+
       - name: 빌드 결과 파일 보관
         uses: actions/upload-artifact@v4
         with:
