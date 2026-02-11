@@ -13,25 +13,24 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v4  
-      - name: Configure Maven settings.xml for Jib
-        run: |
-          mkdir -p ~/.m2
-          cat <<EOF > ~/.m2/settings.xml
-          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
-                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                    xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
-                                        https://maven.apache.org/xsd/settings-1.0.0.xsd">
-            <servers>
-              <server>
-                <id>registry-1.docker.io</id>
-                <username>${{ secrets.DOCKER_USER }}</username>
-                <password>${{ secrets.DOCKER_PWD }}</password>
-              </server>
-            </servers>
-          </settings>
-          EOF
+      # - name: Configure Maven settings.xml for Jib
+      #   run: |
+      #     mkdir -p ~/.m2
+      #     cat <<EOF > ~/.m2/settings.xml
+      #     <settings>
+      #       <servers>
+      #         <server>
+      #           <id>registry-1.docker.io</id>
+      #           <username>${{ secrets.DOCKER_USER }}</username>
+      #           <password>${{ secrets.DOCKER_PWD }}</password>
+      #         </server>
+      #       </servers>
+      #     </settings>
+      #     EOF
 
       - name: Skaffold build (dev profile)
+        env:
+          MAVEN_OPTS: "-Djib.to.auth.username=${{ secrets.DOCKER_USER }} -Djib.to.auth.password=${{ secrets.DOCKER_PWD }}"
         run: |
           # develop 브랜치
           if [[ "${GITHUB_REF}" == "refs/heads/develop" ]]; then
@@ -48,6 +47,7 @@ jobs:
           echo "IMAGE_TAG=${IMAGE_TAG}"
           echo "IMAGE_TAG=$IMAGE_TAG" >> build_tag.env
           skaffold build --cache-artifacts=false -p dev -t $IMAGE_TAG
+          
       - name: 빌드 결과 파일 보관
         uses: actions/upload-artifact@v4
         with:
