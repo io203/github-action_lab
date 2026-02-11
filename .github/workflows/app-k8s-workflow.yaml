@@ -1,0 +1,95 @@
+name: github-action_lab Build (Target k8s)
+
+on:
+  push:
+    branches:
+      - develop
+    tags:
+      - 'RB*'
+
+jobs:
+  build:
+    runs-on: [self-hosted, g-runner]
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Skaffold build (dev profile)
+        env:
+          MAVEN_OPTS: "-Djib.to.auth.username=${{ secrets.DOCKER_USER }} -Djib.to.auth.password=${{ secrets.DOCKER_PWD }}"
+        run: |
+          # develop 브랜치
+          if [[ "${GITHUB_REF}" == "refs/heads/develop" ]]; then
+            SKAFFOLD_PROFILE="dev"
+            IMAGE_TAG="develop-$(TZ='Asia/Seoul' date +'%Y%m%d-%H%M%S')"
+
+          # git tag (release)
+          elif [[ "${GITHUB_REF}" == refs/tags/RB-* ]]; then
+            SKAFFOLD_PROFILE="prod"
+            IMAGE_TAG="${GITHUB_REF_NAME}"
+
+          else
+            echo "Not a build target: ${GITHUB_REF}"
+            exit 0
+          fi
+          #### debug
+          echo "MAVEN_OPTS=${MAVEN_OPTS}"
+          echo "SKAFFOLD_PROFILE=${SKAFFOLD_PROFILE}"
+          echo "IMAGE_TAG=${IMAGE_TAG}"
+          #####
+          
+          ## 이미지테그 정보 변수파일 생성
+          echo "IMAGE_TAG=$IMAGE_TAG" >> build_tag.env
+          skaffold build --cache-artifacts=false -p $SKAFFOLD_PROFILE -t $IMAGE_TAG
+
+      - name: 빌드 결과 파일 보관
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-metadata
+          path: build_tag.env
+
+  update-gitops-develop:
+    needs: build
+    if: github.ref == 'refs/heads/develop' # develop 브랜치일 때만 실행
+    runs-on: [self-hosted, g-runner]
+    steps:
+      - name: Checkout GitOps Repository
+        uses: actions/checkout@v4
+        with:
+          # GitOps 저장소 주소 (예: user/gitops-repo)
+          repository: 'io203/github-action_lab_gitOps' 
+          # 다른 저장소에 푸시하기 위해 Personal Access Token(PAT) 필요
+          token: ${{ secrets.GITOPS_TOKEN }} 
+          ref: 'main'
+      - name: 아티팩트 다운로드 (이 단계가 꼭 필요합니다)
+        uses: actions/download-artifact@v4
+        with:
+          name: build-metadata
+
+      - name: 태그 추출 및 환경변수 등록
+        id: get_tag
+        run: |
+          # 파일 내용을 읽어 GitHub 환경변수에 등록
+          cat build_tag.env >> $GITHUB_ENV
+          
+          # 확인용 (로그에 찍힘)
+          source build_tag.env
+          echo "추출된 태그는 $IMAGE_TAG 입니다.
+
+      - name: Update Kustomization
+        run: |
+          KUSTOMIZATION_PATH="deploy/overlays/develop/kustomization.yaml"
+          
+          echo "Updating DEVELOP environment with tag: $IMAGE_TAG"
+          
+          # kustomization.yaml의 newTag 업데이트
+          sed -i "s|newTag: .*|newTag: ${IMAGE_TAG}|" $KUSTOMIZATION_PATH
+          
+          # Git 설정 및 Push
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          
+          git add $KUSTOMIZATION_PATH
+          git commit -m "Update develop newTag to ${IMAGE_TAG}"
+          git push origin main
+    
