@@ -31,6 +31,33 @@ jobs:
           curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
           chmod +x skaffold
           sudo mv skaffold /usr/local/bin/
-      # 4. Skaffold 버전 확인 (디버깅용)
-      - name: Skaffold version
-        run: skaffold version
+
+
+      - name: Skaffold build 
+        env:
+          MAVEN_OPTS: "-Djib.to.auth.username=${{ secrets.DOCKER_USER }} -Djib.to.auth.password=${{ secrets.DOCKER_PWD }}"
+        run: |
+          # develop 브랜치
+          if [[ "${GITHUB_REF}" == "refs/heads/develop" ]]; then
+            SKAFFOLD_PROFILE="dev"
+            IMAGE_TAG="develop-$(TZ='Asia/Seoul' date +'%Y%m%d-%H%M%S')"
+
+          # git tag (release)
+          elif [[ "${GITHUB_REF}" == refs/tags/RB-* ]]; then
+            SKAFFOLD_PROFILE="prod"
+            IMAGE_TAG="${GITHUB_REF_NAME}"
+
+          else
+            echo "Not a build target: ${GITHUB_REF}"
+            exit 0
+          fi
+          #### debug
+          echo "MAVEN_OPTS=${MAVEN_OPTS}"
+          echo "SKAFFOLD_PROFILE=${SKAFFOLD_PROFILE}"
+          echo "IMAGE_TAG=${IMAGE_TAG}"
+          #####
+          
+          ## 이미지테그 정보 변수파일 생성
+          echo "IMAGE_TAG=$IMAGE_TAG" >> build_tag.env
+          skaffold build --cache-artifacts=false   -p $SKAFFOLD_PROFILE -t $IMAGE_TAG
+
