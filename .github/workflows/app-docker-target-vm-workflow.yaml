@@ -25,6 +25,12 @@ jobs:
           distribution: 'temurin'   # 또는 'zulu', 'corretto' 등
           cache: maven              # Maven 의존성 캐싱 자동 처리
 
-      # 3. Maven Clean + Build + Test
-      - name: Build with Maven
-        run: ./mvnw clean package -DskipTests   # 테스트 실행하려면 skipTests=false
+      # 3. Skaffold 설치 (최신 버전 자동 다운로드)
+      - name: Install Skaffold
+        run: |
+          curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
+          chmod +x skaffold
+          sudo mv skaffold /usr/local/bin/
+      # 4. Skaffold 버전 확인 (디버깅용)
+      - name: Skaffold version
+        run: skaffold version
