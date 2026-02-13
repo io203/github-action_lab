@@ -51,7 +51,6 @@ public class SimpleApiController {
 		// log.info("version 1.0");
 		return "=====simple-api  version 9.0";
 
-
 	}
 
 	@PostMapping("/log-request")
