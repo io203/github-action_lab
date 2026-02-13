@@ -49,7 +49,7 @@ public class SimpleApiController {
 	@GetMapping("/version")
 	public String version() {
 		// log.info("version 1.0");
-		return "=====simple-api  version 5.0";
+		return "=====simple-api  version 6.0";
 
 
 	}
