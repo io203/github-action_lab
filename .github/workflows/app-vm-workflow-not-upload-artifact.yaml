@@ -22,10 +22,10 @@ jobs:
         run: |
           if [[ "${GITHUB_REF}" == "refs/heads/develop" ]]; then
             mkdir -p ~/download/dev
-            cp target/simple-api*.jar  ~/download/dev
+            cp target/*.jar  ~/download/dev
           elif [[ "${GITHUB_REF}" == refs/tags/RB-* ]]; then
             mkdir -p ~/download/prod
-            cp target/simple-api*.jar  ~/download/prod
+            cp target/*.jar  ~/download/prod
           fi
 
   deploy-dev:
