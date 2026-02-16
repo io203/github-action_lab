@@ -18,12 +18,15 @@ jobs:
       - name: Maven build
         run: ./mvnw clean package -DskipTests
 
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-artifact
-          path: target/*.jar
-          retention-days: 1 # 배포용이므로 오래 보관할 필요 없음
+      - name: Save Build Artifact
+        run: |
+          if [[ "${GITHUB_REF}" == "refs/heads/develop" ]]; then
+            mkdir -p ~/download/dev
+            cp target/simple-api*.jar  ~/download/dev
+          elif [[ "${GITHUB_REF}" == refs/tags/RB-* ]]; then
+            mkdir -p ~/download/prod
+            cp target/simple-api*.jar  ~/download/prod
+          fi
 
   deploy-dev:
     needs: build
@@ -38,12 +41,6 @@ jobs:
           - 192.168.41.25 ## test-vm2 dev server
 
     steps:
-      - name: 빌드 결과물 가져오기
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifact
-          path: target/
-
       - name: SSH 키 설정
         run: |
           mkdir -p ~/.ssh
@@ -55,7 +52,7 @@ jobs:
         run: |
           # 1. 원격 서버에 폴더가 없으면 생성 (-p 옵션은 이미 있어도 에러 안 남)
           ssh -o StrictHostKeyChecking=no vagrant@${{ matrix.server }} "mkdir -p /home/vagrant/app"
-          scp -o StrictHostKeyChecking=no target/*.jar vagrant@${{ matrix.server }}:/home/vagrant/app/app.jar
+          scp -o StrictHostKeyChecking=no ~/download/dev/simple-api*.jar vagrant@${{ matrix.server }}:/home/vagrant/app/app.jar
 
       - name: ${{ matrix.server }} 서버 재시작 (SSH)
         run: |
@@ -92,12 +89,6 @@ jobs:
           - 192.168.41.27 ## test-vm2 prod server
 
     steps:
-      - name: 빌드 결과물 가져오기
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifact
-          path: target/
-
       - name: SSH 키 설정
         run: |
           mkdir -p ~/.ssh
@@ -109,7 +100,7 @@ jobs:
         run: |
           # 1. 원격 서버에 폴더가 없으면 생성 (-p 옵션은 이미 있어도 에러 안 남)
           ssh -o StrictHostKeyChecking=no vagrant@${{ matrix.server }} "mkdir -p /home/vagrant/app"
-          scp -o StrictHostKeyChecking=no target/*.jar vagrant@${{ matrix.server }}:/home/vagrant/app/app.jar
+          scp -o StrictHostKeyChecking=no ~/download/prod/simple-api*.jar vagrant@${{ matrix.server }}:/home/vagrant/app/app.jar
 
 
       - name: 운영 서버 재시작 (SSH)
