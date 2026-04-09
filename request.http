@@ -1,8 +1,11 @@
 GET http://192.168.41.26:8080/api/version
+---
 GET http://192.168.41.25:8080/api/hello
+---
 GET http://192.168.41.25:8080/api/version
 
-
+---
 GET http://192.168.41.26/api/version
 
+---
 GET http://dev.192.168.41.26.sslip.io/
