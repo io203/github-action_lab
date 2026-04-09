@@ -1,4 +1,4 @@
-name: github-action_lab Build (Target VM)
+name: ${{ env.APP_NAME }} Build (Target VM)
 
 on:
   push:
@@ -7,10 +7,16 @@ on:
     tags:
       - 'RB*'
 
+env:
+  APP_NAME: github-action_lab
+  REMOTE_USER: vagrant
+  REMOTE_DIR: /home/vagrant/app
+  JAVA_PATH: /home/vagrant/.sdkman/candidates/java/current/bin/java
+
 jobs:
   # 1. 통합 빌드 (공통)
   build:
-    runs-on: [self-hosted, g-runner]
+    runs-on: [self-hosted, global-runner]
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -22,7 +28,7 @@ jobs:
         run: |
           if [[ "${GITHUB_REF}" == "refs/heads/develop" ]]; then
             mkdir -p ~/download/dev
-            cp target/github-action_lab*.jar  ~/download/dev
+            cp target/${{ env.APP_NAME }}*.jar  ~/download/dev
           elif [[ "${GITHUB_REF}" == refs/tags/RB-* ]]; then
             mkdir -p ~/download/prod
             cp target/*.jar  ~/download/prod
@@ -31,7 +37,7 @@ jobs:
   deploy-dev:
     needs: build
     if: github.ref == 'refs/heads/develop'
-    runs-on: [self-hosted, g-runner]
+    runs-on: [self-hosted, global-runner]
     strategy:
       # 중요: max-parallel을 1로 설정하면 1대씩 순차 배포합니다.
       max-parallel: 1
@@ -51,18 +57,18 @@ jobs:
         # scp -o StrictHostKeyChecking=no 옵션이 핵심입니다. (yes/no 묻지 않음)
         run: |
           # 1. 원격 서버에 폴더가 없으면 생성 (-p 옵션은 이미 있어도 에러 안 남)
-          ssh -o StrictHostKeyChecking=no vagrant@${{ matrix.server }} "mkdir -p /home/vagrant/app"
-          scp -o StrictHostKeyChecking=no ~/download/dev/github-action_lab*.jar vagrant@${{ matrix.server }}:/home/vagrant/app/app.jar
+          ssh -o StrictHostKeyChecking=no ${{ env.REMOTE_USER }}@${{ matrix.server }} "mkdir -p ${{ env.REMOTE_DIR }}"
+          scp -o StrictHostKeyChecking=no ~/download/dev/${{ env.APP_NAME }}*.jar ${{ env.REMOTE_USER }}@${{ matrix.server }}:${{ env.REMOTE_DIR }}/app.jar
 
       - name: ${{ matrix.server }} 서버 재시작 (SSH)
         run: |
-          ssh vagrant@${{ matrix.server }} << 'EOF'
+          ssh ${{ env.REMOTE_USER }}@${{ matrix.server }} << 'EOF'
             # 1. 기존 앱 우아하게 종료 (Graceful Shutdown)
             fuser -k 8080/tcp || true
             sleep 5
             
             # 2. 새 버전 실행
-            nohup /home/vagrant/.sdkman/candidates/java/current/bin/java -Dspring.profiles.active=dev -jar /home/vagrant/app/app.jar > /home/vagrant/app/app.log 2>&1 &
+            nohup ${{ env.JAVA_PATH }} -Dspring.profiles.active=dev -jar ${{ env.REMOTE_DIR }}/app.jar > ${{ env.REMOTE_DIR }}/app.log 2>&1 &
             
             # 3. 헬스 체크 (정상 기동될 때까지 대기 - 최대 60초)
             for i in {1..12}; do
@@ -81,7 +87,7 @@ jobs:
     needs: build
     # 태그가 'RB'로 시작할 때만 운영 배포 실행
     if: startsWith(github.ref, 'refs/tags/RB')
-    runs-on: [self-hosted, g-runner]
+    runs-on: [self-hosted, global-runner]
     strategy:
       max-parallel: 1
       matrix:
@@ -99,20 +105,20 @@ jobs:
         # scp -o StrictHostKeyChecking=no 옵션이 핵심입니다. (yes/no 묻지 않음)
         run: |
           # 1. 원격 서버에 폴더가 없으면 생성 (-p 옵션은 이미 있어도 에러 안 남)
-          ssh -o StrictHostKeyChecking=no vagrant@${{ matrix.server }} "mkdir -p /home/vagrant/app"
-          scp -o StrictHostKeyChecking=no ~/download/prod/github-action_lab*.jar vagrant@${{ matrix.server }}:/home/vagrant/app/app.jar
+          ssh -o StrictHostKeyChecking=no ${{ env.REMOTE_USER }}@${{ matrix.server }} "mkdir -p ${{ env.REMOTE_DIR }}"
+          scp -o StrictHostKeyChecking=no ~/download/prod/${{ env.APP_NAME }}*.jar ${{ env.REMOTE_USER }}@${{ matrix.server }}:${{ env.REMOTE_DIR }}/app.jar
 
 
       - name: 운영 서버 재시작 (SSH)
         run: |
-          ssh vagrant@${{ matrix.server }} << 'EOF'
+          ssh ${{ env.REMOTE_USER }}@${{ matrix.server }} << 'EOF'
             fuser -k 8080/tcp || true
             sleep 5
             
             # 운영 프로파일(prod) 적용
-            nohup /home/vagrant/.sdkman/candidates/java/current/bin/java \
+            nohup ${{ env.JAVA_PATH }} \
                   -Dspring.profiles.active=prod \
-                  -jar /home/vagrant/app/app.jar > /home/vagrant/app/app.log 2>&1 &
+                  -jar ${{ env.REMOTE_DIR }}/app.jar > ${{ env.REMOTE_DIR }}/app.log 2>&1 &
             
             # 3. 헬스 체크 (정상 기동될 때까지 대기 - 최대 60초)
             for i in {1..12}; do
