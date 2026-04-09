@@ -6,12 +6,9 @@ env:
   JAVA_PATH: /home/vagrant/.sdkman/candidates/java/current/bin/java
   
   ### dev 환경 ####
-  DEV_SERVER1: 192.168.41.26
-  DEV_SERVER2: 192.168.41.25
-  DEV_SPRING_PROFILE: dev
-  
+  DEV_SPRING_PROFILE: dev 
+
   ### 운영 환경 ####
-  PROD_SERVER1: 192.168.41.27
   PROD_SPRING_PROFILE: prod
 
 
@@ -52,17 +49,19 @@ jobs:
     strategy:
       # 중요: max-parallel을 1로 설정하면 1대씩 순차 배포합니다.
       max-parallel: 1
-      matrix:
+      matrix: ##  GitHub Actions에서 env 컨텍스트는 strategy.matrix 섹션에서 사용할 수 없다. 해당 위치에서는 github, needs, vars, inputs 컨텍스트만 허용
         server:
-          - ${{ env.DEV_SERVER1 }} ## test-vm1 dev-server
-          - ${{ env.DEV_SERVER2 }} ## test-vm2 dev server
+          - 192.168.41.26 ## test-vm1 dev-server
+          - 192.168.41.25 ## test-vm2 dev server
+
+          
 
     steps:
       - name: SSH 키 설정
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa 
 
       - name: ${{ matrix.server }} 서버로 전송 (SCP)
         # scp -o StrictHostKeyChecking=no 옵션이 핵심입니다. (yes/no 묻지 않음)
@@ -101,9 +100,9 @@ jobs:
     runs-on: [self-hosted, global-runner] ## runner 선택 
     strategy:
       max-parallel: 1
-      matrix:
+      matrix: ##  GitHub Actions에서 env 컨텍스트는 strategy.matrix 섹션에서 사용할 수 없다. 해당 위치에서는 github, needs, vars, inputs 컨텍스트만 허용
         server:
-          - ${{ env.PROD_SERVER1 }} ## test-vm2 prod server
+          - 192.168.41.27 ## test-vm2 prod server
 
     steps:
       - name: SSH 키 설정
