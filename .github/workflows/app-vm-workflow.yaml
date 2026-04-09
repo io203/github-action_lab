@@ -1,4 +1,4 @@
-name: ${{ env.APP_NAME }} Build (Target VM)
+name: github-action_lab Build (Target VM)
 
 on:
   push:
