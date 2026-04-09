@@ -86,20 +86,35 @@ jobs:
             SPRING_PROFILE="${{ env.DEV_SPRING_PROFILE }}" \
             REMOTE_DIR="${{ env.REMOTE_DIR }}" \
             'bash -s' << 'EOF'
-            # 1. 기존 앱 우아하게 종료 (Graceful Shutdown)
+            # 1. 기존 앱 종료
             fuser -k 8080/tcp || true
             sleep 5
 
-            # 2. 새 버전 실행 (disown으로 SSH 세션 종료 후에도 프로세스 유지)
+            # 2. 새 버전 실행 (이전 로그 초기화 후 실행, disown으로 SSH 세션 종료 후에도 프로세스 유지)
+            > "$REMOTE_DIR/app.log"
             nohup "$JAVA_PATH" \
               -Dspring.profiles.active="$SPRING_PROFILE" \
               -jar "$REMOTE_DIR/app.jar" > "$REMOTE_DIR/app.log" 2>&1 & disown
 
-            # 3. 헬스 체크 (정상 기동될 때까지 대기 - 최대 60초)
+            # 3. 초기 기동 에러 빠른 감지 (포트 충돌, 설정 오류 등 즉시 실패)
+            sleep 3
+            if grep -q "APPLICATION FAILED TO START\|Port.*already in use\|Unable to start" "$REMOTE_DIR/app.log" 2>/dev/null; then
+              echo "앱 기동 실패! 원인:"
+              tail -30 "$REMOTE_DIR/app.log"
+              exit 1
+            fi
+
+            # 4. 헬스 체크 (정상 기동될 때까지 대기 - 최대 60초)
             for i in {1..12}; do
               if curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
                 echo "App is UP!"
                 exit 0
+              fi
+              # 헬스체크 대기 중 치명적 에러 감지 시 즉시 중단
+              if grep -q "APPLICATION FAILED TO START\|Port.*already in use" "$REMOTE_DIR/app.log" 2>/dev/null; then
+                echo "앱 기동 실패! 원인:"
+                tail -30 "$REMOTE_DIR/app.log"
+                exit 1
               fi
               echo "Waiting for app to start... ($i/12)"
               sleep 5
@@ -152,20 +167,35 @@ jobs:
             SPRING_PROFILE="${{ env.PROD_SPRING_PROFILE }}" \
             REMOTE_DIR="${{ env.REMOTE_DIR }}" \
             'bash -s' << 'EOF'
-            # 1. 기존 앱 우아하게 종료 (Graceful Shutdown)
+            # 1. 기존 앱 종료
             fuser -k 8080/tcp || true
             sleep 5
 
-            # 2. 운영 프로파일(prod) 적용하여 새 버전 실행 (disown으로 SSH 세션 종료 후에도 프로세스 유지)
+            # 2. 운영 프로파일(prod) 적용하여 새 버전 실행 (이전 로그 초기화 후 실행, disown으로 SSH 세션 종료 후에도 프로세스 유지)
+            > "$REMOTE_DIR/app.log"
             nohup "$JAVA_PATH" \
               -Dspring.profiles.active="$SPRING_PROFILE" \
               -jar "$REMOTE_DIR/app.jar" > "$REMOTE_DIR/app.log" 2>&1 & disown
 
-            # 3. 헬스 체크 (정상 기동될 때까지 대기 - 최대 60초)
+            # 3. 초기 기동 에러 빠른 감지 (포트 충돌, 설정 오류 등 즉시 실패)
+            sleep 3
+            if grep -q "APPLICATION FAILED TO START\|Port.*already in use\|Unable to start" "$REMOTE_DIR/app.log" 2>/dev/null; then
+              echo "앱 기동 실패! 원인:"
+              tail -30 "$REMOTE_DIR/app.log"
+              exit 1
+            fi
+
+            # 4. 헬스 체크 (정상 기동될 때까지 대기 - 최대 60초)
             for i in {1..12}; do
               if curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
                 echo "App is UP!"
                 exit 0
+              fi
+              # 헬스체크 대기 중 치명적 에러 감지 시 즉시 중단
+              if grep -q "APPLICATION FAILED TO START\|Port.*already in use" "$REMOTE_DIR/app.log" 2>/dev/null; then
+                echo "앱 기동 실패! 원인:"
+                tail -30 "$REMOTE_DIR/app.log"
+                exit 1
               fi
               echo "Waiting for app to start... ($i/12)"
               sleep 5
