@@ -43,6 +43,8 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
+          # VM 재생성 등으로 호스트 키가 변경된 경우 오래된 키 제거 후 재등록
+          ssh-keygen -R "${{ matrix.server }}" 2>/dev/null || true
           echo "StrictHostKeyChecking accept-new" >> ~/.ssh/config
 
       - name: ${{ matrix.server }} 서버로 전송 (SCP)
