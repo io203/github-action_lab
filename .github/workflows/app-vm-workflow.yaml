@@ -56,7 +56,7 @@ jobs:
       max-parallel: 1
       matrix: ## GitHub Actions에서 env 컨텍스트는 strategy.matrix 섹션에서 사용할 수 없다. 해당 위치에서는 github, needs, vars, inputs 컨텍스트만 허용
         server:
-          - 192.168.41.26 ## test-vm1 dev-server
+          - 192.168.41.25 ## test-vm1 dev-server
 
     steps:
       - name: dev 아티팩트 다운로드
@@ -137,7 +137,7 @@ jobs:
       max-parallel: 1
       matrix: ## GitHub Actions에서 env 컨텍스트는 strategy.matrix 섹션에서 사용할 수 없다. 해당 위치에서는 github, needs, vars, inputs 컨텍스트만 허용
         server:
-          - 192.168.41.25 ## test-vm2 prod server
+          - 192.168.41.26 ## test-vm2 prod server
 
     steps:
       - name: prod 아티팩트 다운로드

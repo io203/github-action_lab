@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: '롤백할 태그 (예: RB-1.0.0) — 배포 이력에 있는 태그만 가능'
+        description: "롤백할 태그 (예: RB-1.0.0) — 배포 이력에 있는 태그만 가능"
         required: true
         type: string
 
@@ -23,7 +23,7 @@ jobs:
       max-parallel: 1
       matrix:
         server:
-          - 192.168.41.25 ## test-vm2 prod server
+          - 192.168.41.26 ## test-vm2 prod server
 
     steps:
       - name: 태그 유효성 검증 (아티팩트 존재 확인)

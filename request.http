@@ -1,9 +1,13 @@
-## 개발 (test-vm1)
-GET http://192.168.41.26/api/version
 
+## 개발 (test-vm1)
+GET http://192.168.41.25:8080/api/version
+---
 
 ## 운영 (test-vm2)
-GET http://192.168.41.25:8080/api/version
+GET http://192.168.41.26:8080/api/version
+
+
+
 
 
 GET http://192.168.41.25:8080/api/hello
