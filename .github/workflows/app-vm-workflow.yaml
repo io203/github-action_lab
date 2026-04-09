@@ -4,7 +4,8 @@ env:
   REMOTE_DIR: /home/vagrant/app
   JAVA_PATH: /home/vagrant/.sdkman/candidates/java/current/bin/java
 
-name: ${{env.APP_NAME}} workflow
+
+name: App Workflow
 
 on:
   push:
