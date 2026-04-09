@@ -20,7 +20,6 @@ env:
   ### 운영 환경 ####
   PROD_SPRING_PROFILE: prod
 
-
 jobs:
   # 1. 통합 빌드 (공통)
   build:
@@ -44,7 +43,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/RB')
         uses: actions/upload-artifact@v4
         with:
-          name: app-${{ github.ref_name }}  # 태그명으로 저장 (예: app-RB-1.0.0) — 롤백 시 재사용
+          name: app-${{ github.ref_name }} # 태그명으로 저장 (예: app-RB-1.0.0) — 롤백 시 재사용
           path: target/${{ env.APP_NAME }}*.jar
           retention-days: 5
 
@@ -58,7 +57,6 @@ jobs:
       matrix: ## GitHub Actions에서 env 컨텍스트는 strategy.matrix 섹션에서 사용할 수 없다. 해당 위치에서는 github, needs, vars, inputs 컨텍스트만 허용
         server:
           - 192.168.41.26 ## test-vm1 dev-server
-          - 192.168.41.25 ## test-vm2 dev server
 
     steps:
       - name: dev 아티팩트 다운로드
@@ -74,8 +72,6 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ## MITM 공격 대응
           echo "StrictHostKeyChecking accept-new" >> ~/.ssh/config
-
-         
 
       - name: ${{ matrix.server }} 서버로 전송 (SCP)
         run: |
@@ -126,7 +122,7 @@ jobs:
       max-parallel: 1
       matrix: ## GitHub Actions에서 env 컨텍스트는 strategy.matrix 섹션에서 사용할 수 없다. 해당 위치에서는 github, needs, vars, inputs 컨텍스트만 허용
         server:
-          - 192.168.41.27 ## prod server
+          - 192.168.41.25 ## test-vm2 prod server
 
     steps:
       - name: prod 아티팩트 다운로드

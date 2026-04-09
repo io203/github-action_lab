@@ -23,7 +23,7 @@ jobs:
       max-parallel: 1
       matrix:
         server:
-          - 192.168.41.27 ## prod server
+          - 192.168.41.25 ## test-vm2 prod server
 
     steps:
       - name: 태그 유효성 검증 (아티팩트 존재 확인)
