@@ -20,7 +20,6 @@ env:
   ### 운영 환경 ####
   PROD_SPRING_PROFILE: prod
 
-
 jobs:
   # 1. 통합 빌드 (공통)
   build:

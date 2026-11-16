@@ -6,7 +6,8 @@ profiles:
     build:
       local:
         push: true
-      
+
+
       artifacts:
         - image: saturn203/github-action_lab
           jib:
@@ -19,7 +20,7 @@ profiles:
     build:
       local:
         push: true
-      
+
       artifacts:
         - image: saturn203/github-action_lab
           jib:
@@ -28,4 +29,3 @@ profiles:
               - "-Djib.container.environment=SPRING_PROFILES_ACTIVE=prod"
             # fromImage: eclipse-temurin:17.0.2_8-jre
             fromImage: eclipse-temurin:21.0.3_9-jre
-    
