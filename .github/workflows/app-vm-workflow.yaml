@@ -10,9 +10,9 @@ on:
 env:
   ### 공통 환경 ####
   APP_NAME: github-action_lab
-  REMOTE_USER: vagrant
-  REMOTE_DIR: /home/vagrant/app
-  JAVA_PATH: /home/vagrant/.sdkman/candidates/java/current/bin/java
+  REMOTE_USER: ubuntu
+  REMOTE_DIR: /home/ubuntu/app
+  JAVA_PATH: /usr/bin/java
 
   ### dev 환경 ####
   DEV_SPRING_PROFILE: dev
@@ -60,7 +60,7 @@ jobs:
       max-parallel: 1
       matrix: ## GitHub Actions에서 env 컨텍스트는 strategy.matrix 섹션에서 사용할 수 없다. 해당 위치에서는 github, needs, vars, inputs 컨텍스트만 허용
         server:
-          - 192.168.41.25 ## test-vm1 dev-server
+          - 192.168.41.15 ## dev-app-vm1
 
     steps:
       - name: SSH 키 설정
@@ -136,7 +136,7 @@ jobs:
       max-parallel: 1
       matrix: ## GitHub Actions에서 env 컨텍스트는 strategy.matrix 섹션에서 사용할 수 없다. 해당 위치에서는 github, needs, vars, inputs 컨텍스트만 허용
         server:
-          - 192.168.41.26 ## prod server
+          - 192.168.41.16 ## prod-app-vm1
 
     steps:
       - name: SSH 키 설정
