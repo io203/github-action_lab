@@ -6,6 +6,10 @@ on:
       - develop ## 개발 배포용
     tags:
       - "RB*" ## 운영 배포용
+  pull_request: ## PR에서는 lint/test/커버리지 검사만 실행 (배포 job은 ref 조건으로 건너뜀)
+    branches:
+      - develop
+      - main
 
 env:
   ### 공통 환경 ####
@@ -28,10 +32,61 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Maven build
-        run: ./mvnw clean package -DskipTests
+      - name: JDK 25 설정
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      # validate(Checkstyle lint) → test(JUnit + JaCoCo) → package → verify(커버리지 리포트·최소치 검사)
+      # 어느 단계든 실패하면 job 실패 → 배포 job(needs: build)도 실행되지 않음
+      - name: Lint + Test + Coverage + Build
+        run: ./mvnw -B clean verify
+
+      - name: 테스트·커버리지 요약 (Job Summary)
+        if: always()
+        run: |
+          {
+            echo "## 테스트 결과"
+            if ls target/surefire-reports/TEST-*.xml >/dev/null 2>&1; then
+              awk -F'"' '/<testsuite /{
+                  for (i=1;i<NF;i++) {
+                    if ($i ~ / tests=$/) t+=$(i+1); if ($i ~ / failures=$/) f+=$(i+1);
+                    if ($i ~ / errors=$/) e+=$(i+1); if ($i ~ / skipped=$/) s+=$(i+1);
+                  }
+                } END { printf "| 전체 | 실패 | 에러 | 건너뜀 |\n|---|---|---|---|\n| %d | %d | %d | %d |\n", t, f, e, s }' \
+                target/surefire-reports/TEST-*.xml
+            else
+              echo "테스트 리포트 없음 (lint 또는 컴파일 단계에서 실패)"
+            fi
+            echo
+            echo "## 커버리지 (JaCoCo)"
+            if [ -f target/site/jacoco/jacoco.csv ]; then
+              awk -F, 'NR>1 { lm+=$8; lc+=$9; bm+=$6; bc+=$7 } END {
+                  lp = (lm+lc) ? 100*lc/(lm+lc) : 0;
+                  br = (bm+bc) ? sprintf("%.1f%% (%d/%d)", 100*bc/(bm+bc), bc, bm+bc) : "- (분기 없음)";
+                  printf "| 라인 | 브랜치 |\n|---|---|\n| %.1f%% (%d/%d) | %s |\n", lp, lc, lm+lc, br }' \
+                target/site/jacoco/jacoco.csv
+            else
+              echo "커버리지 리포트 없음"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 리포트 업로드 (lint·테스트·커버리지)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-reports-${{ github.run_number }}
+          path: |
+            target/checkstyle-result.xml
+            target/surefire-reports/
+            target/site/jacoco/
+          retention-days: 14
+          if-no-files-found: ignore
 
       - name: 빌드 아티팩트 저장 (runner 로컬)
+        if: github.event_name == 'push'
         run: |
           if [[ "${GITHUB_REF}" == "refs/heads/develop" ]]; then
             mkdir -p ~/build-artifacts/dev
