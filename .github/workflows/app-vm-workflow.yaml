@@ -44,6 +44,7 @@ jobs:
     ##  - push/태그 : self-hosted runner — 빌드한 jar 를 runner 로컬에 보관해 배포 job 에 넘김
     ##  ※ fork PR 이 이 파일을 고쳐 self-hosted 로 바꾸는 것은 "외부 기여자 승인 필요" 설정으로 막는다
     ##    (Settings > Actions > General). 승인 전 .github/ 변경 여부를 반드시 확인할 것.
+     ## runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted", "global-runner"]') }}
     runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'ubuntu-latest' || fromJSON('["self-hosted", "global-runner"]') }}
     timeout-minutes: 20
     outputs:

@@ -1,0 +1,203 @@
+name: App Workflow
+
+on:
+  push:
+    branches:
+      - develop ## 개발 배포용
+    tags:
+      - "RB*" ## 운영 배포용
+
+env:
+  ### 공통 환경 ####
+  APP_NAME: github-action_lab
+  REMOTE_USER: vagrant
+  REMOTE_DIR: /home/vagrant/app
+  JAVA_PATH: /home/vagrant/.sdkman/candidates/java/current/bin/java
+
+  ### dev 환경 ####
+  DEV_SPRING_PROFILE: dev
+
+  ### 운영 환경 ####
+  PROD_SPRING_PROFILE: prod
+
+
+jobs:
+  # 1. 통합 빌드 (공통)
+  build:
+    runs-on: [self-hosted, global-runner] ## runner 선택
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Maven build
+        run: ./mvnw clean package -DskipTests
+
+      - name: 빌드 아티팩트 저장 (runner 로컬)
+        run: |
+          if [[ "${GITHUB_REF}" == "refs/heads/develop" ]]; then
+            mkdir -p ~/build-artifacts/dev
+            TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+            cp target/${{ env.APP_NAME }}*.jar ~/build-artifacts/dev/app-develop-${TIMESTAMP}.jar
+            # latest 심링크 갱신 — deploy-dev에서 참조
+            ln -sf ~/build-artifacts/dev/app-develop-${TIMESTAMP}.jar ~/build-artifacts/dev/app-develop-latest.jar
+            # 오래된 파일 정리 (최근 3개만 유지)
+            ls -t ~/build-artifacts/dev/app-develop-*.jar | tail -n +4 | xargs -r rm
+            echo "저장 완료: ~/build-artifacts/dev/app-develop-${TIMESTAMP}.jar"
+          elif [[ "${GITHUB_REF}" == refs/tags/RB* ]]; then
+            mkdir -p ~/build-artifacts/prod
+            cp target/${{ env.APP_NAME }}*.jar ~/build-artifacts/prod/app-${{ github.ref_name }}.jar
+            # 오래된 파일 정리 (최근 5개만 유지)
+            ls -t ~/build-artifacts/prod/app-RB*.jar | tail -n +6 | xargs -r rm
+            echo "저장 완료: ~/build-artifacts/prod/app-${{ github.ref_name }}.jar"
+          fi
+
+  deploy-dev:
+    needs: build
+    if: github.ref == 'refs/heads/develop'
+    runs-on: [self-hosted, global-runner]
+    strategy:
+      # 중요: max-parallel을 1로 설정하면 1대씩 순차 배포합니다.
+      max-parallel: 1
+      matrix: ## GitHub Actions에서 env 컨텍스트는 strategy.matrix 섹션에서 사용할 수 없다. 해당 위치에서는 github, needs, vars, inputs 컨텍스트만 허용
+        server:
+          - 192.168.41.25 ## test-vm1 dev-server
+
+    steps:
+      - name: SSH 키 설정
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          # VM 재생성 등으로 호스트 키가 변경된 경우 오래된 키 제거 후 재등록
+          ssh-keygen -R "${{ matrix.server }}" 2>/dev/null || true
+          echo "StrictHostKeyChecking accept-new" >> ~/.ssh/config
+
+      - name: ${{ matrix.server }} 서버로 전송 (SCP)
+        run: |
+          # 원격 서버에 폴더가 없으면 생성 (-p 옵션은 이미 있어도 에러 안 남)
+          ssh ${{ env.REMOTE_USER }}@${{ matrix.server }} "mkdir -p ${{ env.REMOTE_DIR }}"
+          scp ~/build-artifacts/dev/app-develop-latest.jar ${{ env.REMOTE_USER }}@${{ matrix.server }}:${{ env.REMOTE_DIR }}/app.jar
+
+      - name: ${{ matrix.server }} 서버 재시작 (SSH)
+        run: |
+          ssh ${{ env.REMOTE_USER }}@${{ matrix.server }} \
+            JAVA_PATH="${{ env.JAVA_PATH }}" \
+            SPRING_PROFILE="${{ env.DEV_SPRING_PROFILE }}" \
+            REMOTE_DIR="${{ env.REMOTE_DIR }}" \
+            'bash -s' << 'EOF'
+            # 1. 기존 앱 종료
+            fuser -k 8080/tcp || true
+            sleep 5
+
+            # 2. 새 버전 실행 (이전 로그 초기화 후 실행, disown으로 SSH 세션 종료 후에도 프로세스 유지)
+            > "$REMOTE_DIR/app.log"
+            nohup "$JAVA_PATH" \
+              -Dspring.profiles.active="$SPRING_PROFILE" \
+              -jar "$REMOTE_DIR/app.jar" > "$REMOTE_DIR/app.log" 2>&1 & disown
+
+            # 3. 초기 기동 에러 빠른 감지 (포트 충돌, 설정 오류 등 즉시 실패)
+            sleep 3
+            if grep -q "APPLICATION FAILED TO START\|Port.*already in use\|Unable to start" "$REMOTE_DIR/app.log" 2>/dev/null; then
+              echo "앱 기동 실패! 원인:"
+              tail -30 "$REMOTE_DIR/app.log"
+              exit 1
+            fi
+
+            # 4. 헬스 체크 (정상 기동될 때까지 대기 - 최대 60초)
+            for i in {1..12}; do
+              if curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+                echo "App is UP!"
+                exit 0
+              fi
+              # 헬스체크 대기 중 치명적 에러 감지 시 즉시 중단
+              if grep -q "APPLICATION FAILED TO START\|Port.*already in use" "$REMOTE_DIR/app.log" 2>/dev/null; then
+                echo "앱 기동 실패! 원인:"
+                tail -30 "$REMOTE_DIR/app.log"
+                exit 1
+              fi
+              echo "Waiting for app to start... ($i/12)"
+              sleep 5
+            done
+            echo "Deployment Failed!"
+            exit 1
+          EOF
+
+      - name: SSH 키 정리
+        if: always()
+        run: rm -f ~/.ssh/id_rsa
+
+  deploy-prod:
+    needs: build
+    # 태그가 'RB'로 시작할 때만 운영 배포 실행
+    if: startsWith(github.ref, 'refs/tags/RB')
+    runs-on: [self-hosted, global-runner] ## runner 선택
+    environment: production ## 운영 배포 전 수동 승인 (GitHub repo Settings > Environments에서 승인자 지정)
+    strategy:
+      max-parallel: 1
+      matrix: ## GitHub Actions에서 env 컨텍스트는 strategy.matrix 섹션에서 사용할 수 없다. 해당 위치에서는 github, needs, vars, inputs 컨텍스트만 허용
+        server:
+          - 192.168.41.26 ## prod server
+
+    steps:
+      - name: SSH 키 설정
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          # VM 재생성 등으로 호스트 키가 변경된 경우 오래된 키 제거 후 재등록
+          ssh-keygen -R "${{ matrix.server }}" 2>/dev/null || true
+          echo "StrictHostKeyChecking accept-new" >> ~/.ssh/config
+
+      - name: ${{ matrix.server }} 서버로 전송 (SCP)
+        run: |
+          # 원격 서버에 폴더가 없으면 생성 (-p 옵션은 이미 있어도 에러 안 남)
+          ssh ${{ env.REMOTE_USER }}@${{ matrix.server }} "mkdir -p ${{ env.REMOTE_DIR }}"
+          scp ~/build-artifacts/prod/app-${{ github.ref_name }}.jar ${{ env.REMOTE_USER }}@${{ matrix.server }}:${{ env.REMOTE_DIR }}/app.jar
+
+      - name: 운영 서버 재시작 (SSH)
+        run: |
+          ssh ${{ env.REMOTE_USER }}@${{ matrix.server }} \
+            JAVA_PATH="${{ env.JAVA_PATH }}" \
+            SPRING_PROFILE="${{ env.PROD_SPRING_PROFILE }}" \
+            REMOTE_DIR="${{ env.REMOTE_DIR }}" \
+            'bash -s' << 'EOF'
+            # 1. 기존 앱 종료
+            fuser -k 8080/tcp || true
+            sleep 5
+
+            # 2. 운영 프로파일(prod) 적용하여 새 버전 실행 (이전 로그 초기화 후 실행, disown으로 SSH 세션 종료 후에도 프로세스 유지)
+            > "$REMOTE_DIR/app.log"
+            nohup "$JAVA_PATH" \
+              -Dspring.profiles.active="$SPRING_PROFILE" \
+              -jar "$REMOTE_DIR/app.jar" > "$REMOTE_DIR/app.log" 2>&1 & disown
+
+            # 3. 초기 기동 에러 빠른 감지 (포트 충돌, 설정 오류 등 즉시 실패)
+            sleep 3
+            if grep -q "APPLICATION FAILED TO START\|Port.*already in use\|Unable to start" "$REMOTE_DIR/app.log" 2>/dev/null; then
+              echo "앱 기동 실패! 원인:"
+              tail -30 "$REMOTE_DIR/app.log"
+              exit 1
+            fi
+
+            # 4. 헬스 체크 (정상 기동될 때까지 대기 - 최대 60초)
+            for i in {1..12}; do
+              if curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+                echo "App is UP!"
+                exit 0
+              fi
+              # 헬스체크 대기 중 치명적 에러 감지 시 즉시 중단
+              if grep -q "APPLICATION FAILED TO START\|Port.*already in use" "$REMOTE_DIR/app.log" 2>/dev/null; then
+                echo "앱 기동 실패! 원인:"
+                tail -30 "$REMOTE_DIR/app.log"
+                exit 1
+              fi
+              echo "Waiting for app to start... ($i/12)"
+              sleep 5
+            done
+            echo "Deployment Failed!"
+            exit 1
+          EOF
+
+      - name: SSH 키 정리
+        if: always()
+        run: rm -f ~/.ssh/id_rsa
