@@ -33,3 +33,6 @@ build/
 .vscode/
 
 app-vm-workflow-bak.yaml
+
+### Node (commitlint 로컬 실행 시) ###
+node_modules/

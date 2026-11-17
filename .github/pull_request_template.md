@@ -1,0 +1,26 @@
+<!--
+PR 제목은 Conventional Commits 형식으로 작성합니다 (CI 에서 검사).
+  예) feat(api): 인사 메시지 조회 API 추가 / fix(deploy): 헬스체크 실패 시 로그 누락 수정
+Squash and merge 시 PR 제목이 그대로 develop/main 의 커밋 메시지가 됩니다.
+-->
+
+## 변경 내용
+<!-- 무엇을 바꿨는지 -->
+
+## 변경 이유
+<!-- 왜 바꿨는지, 관련 이슈 (Refs: #123) -->
+
+## 테스트 방법
+<!-- 리뷰어가 확인하는 방법: 실행 명령, 호출할 API, 기대 결과 -->
+
+## 리뷰어에게
+<!-- 특히 봐 줬으면 하는 부분, 고민한 대안
+     리뷰 코멘트는 Conventional Comments 라벨로: issue / suggestion / question / nitpick / praise ...
+     (docs/code-review-guide.md) -->
+
+
+## 체크리스트
+- [ ] PR 제목이 Conventional Commits 형식이다 (예: `feat(api): …`)
+- [ ] 로컬에서 `./mvnw verify` 가 통과한다 (lint · 테스트 · 커버리지)
+- [ ] 하나의 PR 에 하나의 목적만 담았다
+- [ ] 설정·비밀값(키, 비밀번호)을 커밋하지 않았다

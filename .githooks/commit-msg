@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# =============================================================================
+# commit-msg hook — 커밋 메시지 첫 줄이 Conventional Commits 형식인지 검사
+#
+# 설치: ./scripts/setup-git.sh   (또는 git config core.hooksPath .githooks)
+# 건너뛰기(비상시): git commit --no-verify
+# 가이드: docs/commit-convention.md
+#
+# CI(.github/workflows/pr-convention.yaml)의 commitlint 와 같은 규칙을 쓰되,
+# Node 없이 돌도록 핵심 규칙만 셸로 검사한다. 최종 판정은 CI 가 한다.
+# =============================================================================
+set -euo pipefail
+
+MSG_FILE="$1"
+# 주석(#)·빈 줄을 뺀 첫 줄 = 제목
+HEADER="$(grep -v '^#' "$MSG_FILE" | sed '/^[[:space:]]*$/d' | head -n 1 || true)"
+
+# commitlint 기본 무시 대상: merge / revert / fixup! / squash! 커밋
+if [[ "$HEADER" =~ ^(Merge |Revert \"|fixup! |squash! |amend! ) ]]; then
+  exit 0
+fi
+
+TYPES="feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert"
+PATTERN="^(${TYPES})(\([a-z0-9._/-]+\))?!?: [^[:space:]].*$"
+
+error() {
+  {
+    echo ""
+    echo "✖ 커밋 메시지가 Conventional Commits 형식이 아닙니다: $1"
+    echo ""
+    echo "  입력한 제목 : ${HEADER:-<비어 있음>}"
+    echo "  형식        : <type>(<scope>): <subject>"
+    echo "  type        : ${TYPES//|/, }"
+    echo "  예시        : feat(api): 인사 메시지 조회 API 추가"
+    echo ""
+    echo "  메시지는 .git/COMMIT_EDITMSG 에 남아 있습니다 → git commit -e -F .git/COMMIT_EDITMSG 로 다시 편집"
+    echo ""
+  } >&2
+  exit 1
+}
+
+[ -n "$HEADER" ] || error "제목이 비어 있음"
+[[ "$HEADER" =~ $PATTERN ]] || error "type/scope/콜론 형식 불일치 (scope 는 소문자)"
+[[ "$HEADER" != *. ]] || error "제목 끝에 마침표(.)를 붙이지 않음"
+[ "${#HEADER}" -le 100 ] || error "제목이 100자를 넘음 (${#HEADER}자)"
+
+exit 0
