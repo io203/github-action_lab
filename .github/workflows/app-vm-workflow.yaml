@@ -38,7 +38,10 @@ env:
 jobs:
   # 1. 통합 빌드 (공통)
   build:
-    runs-on: [self-hosted, global-runner] ## runner 선택
+    ## runner 선택
+    ##  - PR      : GitHub 제공 runner (ubuntu-latest) — PR 코드가 내부망 self-hosted runner 에 닿지 않게
+    ##  - push/태그: self-hosted runner — 빌드한 jar 를 runner 로컬에 보관해 배포 job 에 넘김
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted", "global-runner"]') }}
     timeout-minutes: 20
     outputs:
       jar: ${{ steps.store.outputs.jar }} ## 배포 job이 그대로 받아 쓰는 jar 경로 (runner 로컬)
