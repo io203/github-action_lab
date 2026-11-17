@@ -16,11 +16,12 @@ concurrency:
   group: rollback-prod
   cancel-in-progress: false
 
+## ※ 운영 배포(app-vm-workflow.yaml 의 deploy-prod)와 같은 서버·계정·경로여야 한다. 한쪽을 바꾸면 같이 바꿀 것
 env:
   APP_NAME: github-action_lab
-  REMOTE_USER: vagrant
-  REMOTE_DIR: /home/vagrant/app
-  REMOTE_JAVA_PATH: /home/vagrant/.sdkman/candidates/java/current/bin/java
+  REMOTE_USER: ubuntu
+  REMOTE_DIR: /home/ubuntu/app
+  REMOTE_JAVA_PATH: /usr/bin/java ## 대상 VM의 java (25 이상 필요)
   PROD_SPRING_PROFILE: prod
 
 jobs:
@@ -32,7 +33,7 @@ jobs:
       max-parallel: 1
       matrix:
         server:
-          - 192.168.41.26 ## prod server
+          - 192.168.41.16 ## prod-app-vm1 (app-vm-workflow.yaml deploy-prod 와 동일)
 
     steps:
       - name: 아티팩트 존재 확인 (app-${{ inputs.tag }}.jar)
