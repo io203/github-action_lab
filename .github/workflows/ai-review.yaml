@@ -1,0 +1,71 @@
+name: AI Review (OpenAI)
+
+## PR 에 'ai-review' 라벨을 붙이면 OpenAI 모델이 변경분을 리뷰해 PR 코멘트 1개로 남긴다.
+## 라벨이 붙어 있는 동안은 커밋이 추가될 때마다 같은 코멘트를 갱신한다. (그만 받으려면 라벨 제거)
+##
+## 준비
+##  - 시크릿 OPENAI_API_KEY        : Settings > Secrets and variables > Actions > Secrets
+##  - (선택) 변수 OPENAI_MODEL      : 같은 화면의 Variables 탭. 없으면 gpt-6.1-sol
+##
+## ※ AI 리뷰는 참고용이다. 프롬프트 주입 위험이 있으므로 Required Status Check 에 넣지 않는다.
+on:
+  pull_request:
+    types: [labeled, synchronize, reopened]
+    branches:   # base(머지 대상) 브랜치
+      - develop
+      - main
+
+## 워크플로 기본 권한은 없음, job 에서 필요한 것만 연다
+permissions: {}
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ai-review:
+    ## 1) 'ai-review' 라벨이 붙어 있고
+    ## 2) labeled 이벤트라면 방금 붙인 라벨이 'ai-review' 일 때만 (다른 라벨 붙일 때 중복 실행 방지)
+    ## 3) 같은 저장소 브랜치의 PR 만 (fork PR 에는 시크릿이 전달되지 않음)
+    if: >-
+      contains(github.event.pull_request.labels.*.name, 'ai-review')
+      && (github.event.action != 'labeled' || github.event.label.name == 'ai-review')
+      && github.event.pull_request.head.repo.full_name == github.repository
+    ## 외부 API 호출만 하므로 내부망 runner 불필요
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read        # 코드 checkout
+      pull-requests: write  # PR 코멘트 작성
+    steps:
+      - name: OpenAI 키 확인
+        id: key
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::warning::시크릿 OPENAI_API_KEY 가 없어 AI 리뷰를 건너뜁니다"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7.0.1
+        if: steps.key.outputs.ok == 'true'
+        with:
+          fetch-depth: 0              ## base...head diff 계산에 전체 이력 필요
+          persist-credentials: false  ## 이후 단계에서 git push 할 일 없음
+
+      - name: OpenAI 리뷰 → PR 코멘트
+        if: steps.key.outputs.ok == 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-6.1-sol' }}
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          ## PR 제목·본문은 외부 입력 → run 에 직접 넣지 않고 env 로 전달
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python3 -I .github/scripts/ai_review.py
