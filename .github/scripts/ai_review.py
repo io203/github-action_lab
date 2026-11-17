@@ -15,6 +15,9 @@ PR 변경분(diff)을 OpenAI 모델로 리뷰하고, 결과를 PR 에 코멘트 
   MAX_DIFF_CHARS (기본 120000), GITHUB_STEP_SUMMARY
 
 외부 패키지 없이 표준 라이브러리만 사용한다.
+
+보안: 워크플로는 base(머지 대상) 커밋을 checkout 한 상태에서 이 스크립트를 실행한다.
+따라서 이 파일과 리뷰 규칙 파일은 base 버전이고, PR 의 코드는 git diff 로 '데이터'로만 읽는다.
 """
 from __future__ import annotations
 
@@ -162,23 +165,39 @@ def call_openai(api_key: str, model: str, instructions: str, user_input: str) ->
     ]
     text = "\n".join(t for t in texts if t).strip()
 
+    # 본문이 없으면 (끊긴 응답 포함) 실패 처리 — 경고 문구만 있는 빈 리뷰를 게시하지 않도록 먼저 검사
+    if not text:
+        reason = (res.get("incomplete_details") or {}).get("reason", "")
+        sys.exit(f"::error::OpenAI 응답에 텍스트가 없습니다 (status={res.get('status')}, reason={reason or '-'}"
+                 " — 거부되었거나 출력 토큰 부족)")
+    # 본문은 있으나 중간에 끊긴 경우만 경고를 붙여 게시
     if res.get("status") == "incomplete":
         reason = (res.get("incomplete_details") or {}).get("reason", "unknown")
         log(f"응답이 중간에 끊김: {reason}")
         text += f"\n\n> ⚠️ 응답이 끝까지 생성되지 않았습니다 (reason: `{reason}`)."
-    if not text:
-        sys.exit("::error::OpenAI 응답에 텍스트가 없습니다 (거부되었거나 출력 토큰 부족)")
     return text, res.get("usage") or {}
 
 
 # ---------------------------------------------------------------------------
 # 4. PR 코멘트
 # ---------------------------------------------------------------------------
+BOT_LOGIN = "github-actions[bot]"  # GITHUB_TOKEN 으로 쓴 코멘트의 작성자
+
+
 def upsert_comment(token: str, repo: str, pr: str, body: str) -> str:
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
                "X-GitHub-Api-Version": "2022-11-28"}
-    comments = http_json("GET", f"{GITHUB_API}/repos/{repo}/issues/{pr}/comments?per_page=100", headers) or []
-    mine = [c for c in comments if MARKER in (c.get("body") or "") and c.get("user", {}).get("type") == "Bot"]
+    # 코멘트가 100개를 넘어도 찾도록 모든 페이지를 조회
+    comments, page = [], 1
+    while True:
+        batch = http_json("GET", f"{GITHUB_API}/repos/{repo}/issues/{pr}/comments?per_page=100&page={page}", headers) or []
+        comments.extend(batch)
+        if len(batch) < 100:
+            break
+        page += 1
+    # 표식만으로는 사람이 복사한 코멘트와 구분되지 않으므로 작성자(봇 계정)도 확인
+    mine = [c for c in comments
+            if MARKER in (c.get("body") or "") and (c.get("user") or {}).get("login") == BOT_LOGIN]
     if mine:
         c = http_json("PATCH", f"{GITHUB_API}/repos/{repo}/issues/comments/{mine[-1]['id']}", headers, {"body": body})
         return f"갱신: {c['html_url']}"
