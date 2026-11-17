@@ -9,3 +9,4 @@ chmod +x .githooks/*
 
 echo "✔ 커밋 템플릿: $(git config commit.template)"
 echo "✔ hook 경로  : $(git config core.hooksPath)"
+echo "사용법·IDE 연동: docs/commit-convention.md"

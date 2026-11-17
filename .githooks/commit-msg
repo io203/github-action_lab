@@ -4,6 +4,7 @@
 #
 # 설치: ./scripts/setup-git.sh   (또는 git config core.hooksPath .githooks)
 # 건너뛰기(비상시): git commit --no-verify
+# 가이드: docs/commit-convention.md
 #
 # CI(.github/workflows/pr-convention.yaml)의 commitlint 와 같은 규칙을 쓰되,
 # Node 없이 돌도록 핵심 규칙만 셸로 검사한다. 최종 판정은 CI 가 한다.
