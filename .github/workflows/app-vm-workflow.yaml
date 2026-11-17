@@ -27,7 +27,7 @@ env:
   APP_NAME: github-action_lab
   REMOTE_USER: ubuntu
   REMOTE_DIR: /home/ubuntu/app
-  JAVA_PATH: /usr/bin/java ## 대상 VM의 java (빌드용 JDK 와 별개, 25 이상 필요)
+  REMOTE_JAVA_PATH: /usr/bin/java ## 대상 VM의 java (빌드용 JDK 와 별개, 25 이상 필요)
 
   ### dev 환경 ####
   DEV_SPRING_PROFILE: dev
@@ -155,7 +155,7 @@ jobs:
           jar: ${{ needs.build.outputs.jar }}
           app-name: ${{ env.APP_NAME }}
           remote-dir: ${{ env.REMOTE_DIR }}
-          java-path: ${{ env.JAVA_PATH }}
+          java-path: ${{ env.REMOTE_JAVA_PATH }}
           spring-profile: ${{ env.DEV_SPRING_PROFILE }}
 
   deploy-prod:
@@ -186,5 +186,5 @@ jobs:
           jar: ${{ needs.build.outputs.jar }}
           app-name: ${{ env.APP_NAME }}
           remote-dir: ${{ env.REMOTE_DIR }}
-          java-path: ${{ env.JAVA_PATH }}
+          java-path: ${{ env.REMOTE_JAVA_PATH }}
           spring-profile: ${{ env.PROD_SPRING_PROFILE }}

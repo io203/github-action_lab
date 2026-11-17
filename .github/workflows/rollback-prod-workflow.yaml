@@ -20,7 +20,7 @@ env:
   APP_NAME: github-action_lab
   REMOTE_USER: vagrant
   REMOTE_DIR: /home/vagrant/app
-  JAVA_PATH: /home/vagrant/.sdkman/candidates/java/current/bin/java
+  REMOTE_JAVA_PATH: /home/vagrant/.sdkman/candidates/java/current/bin/java
   PROD_SPRING_PROFILE: prod
 
 jobs:
@@ -66,5 +66,5 @@ jobs:
           jar: ${{ steps.artifact.outputs.jar }}
           app-name: ${{ env.APP_NAME }}
           remote-dir: ${{ env.REMOTE_DIR }}
-          java-path: ${{ env.JAVA_PATH }}
+          java-path: ${{ env.REMOTE_JAVA_PATH }}
           spring-profile: ${{ env.PROD_SPRING_PROFILE }}
