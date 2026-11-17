@@ -6,7 +6,7 @@ on:
   pull_request:
     ## edited: PR 제목을 고치면 다시 검사
     types: [opened, edited, synchronize, reopened]
-    branches:
+    branches:   # ← base(머지 대상) 브랜치 필터
       - develop
       - main
 
