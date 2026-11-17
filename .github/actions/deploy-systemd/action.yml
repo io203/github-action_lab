@@ -1,0 +1,87 @@
+name: Deploy to VM (systemd)
+description: jar 를 VM 으로 전송하고 systemd 서비스로 (재)기동한 뒤 헬스체크한다
+
+inputs:
+  host:
+    description: 대상 서버 IP/호스트
+    required: true
+  user:
+    description: SSH 접속 계정 (서비스도 이 계정으로 실행)
+    required: true
+  ssh-key:
+    description: SSH 개인키 (secrets.SSH_PRIVATE_KEY)
+    required: true
+  jar:
+    description: runner 에 있는 배포할 jar 경로
+    required: true
+  app-name:
+    description: 앱 이름 = systemd 서비스 이름
+    required: true
+  remote-dir:
+    description: 서버의 앱 디렉터리
+    required: true
+  java-path:
+    description: 서버의 java 실행 파일 절대경로
+    required: true
+  spring-profile:
+    description: Spring 프로파일
+    required: true
+  app-port:
+    description: 헬스체크 포트
+    default: "8080"
+  health-timeout:
+    description: 헬스체크 최대 대기(초)
+    default: "90"
+
+runs:
+  using: composite
+  steps:
+    # 키는 job 전용 임시 디렉터리(RUNNER_TEMP)에만 둔다 → runner 계정의 ~/.ssh 를 건드리지 않음
+    - name: SSH 준비
+      shell: bash
+      env:
+        SSH_KEY: ${{ inputs.ssh-key }}
+      run: |
+        umask 077
+        printf '%s\n' "$SSH_KEY" > "$RUNNER_TEMP/deploy_key"
+        : > "$RUNNER_TEMP/known_hosts"
+
+    - name: jar 전송 → ${{ inputs.host }}
+      shell: bash
+      env:
+        HOST: ${{ inputs.host }}
+        USER_NAME: ${{ inputs.user }}
+        JAR: ${{ inputs.jar }}
+        REMOTE_DIR: ${{ inputs.remote-dir }}
+      run: |
+        SSH_OPTS=(-i "$RUNNER_TEMP/deploy_key" -o StrictHostKeyChecking=accept-new
+                  -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -o ConnectTimeout=10)
+        [ -f "$JAR" ] || { echo "::error::jar 가 없습니다: $JAR"; exit 1; }
+        echo "전송: $JAR → $USER_NAME@$HOST:$REMOTE_DIR/app.jar.new"
+        ssh "${SSH_OPTS[@]}" "$USER_NAME@$HOST" "mkdir -p '$REMOTE_DIR'"
+        # 실행 중인 app.jar 를 직접 덮어쓰지 않도록 .new 로 올린 뒤 서버에서 rename
+        scp "${SSH_OPTS[@]}" "$JAR" "$USER_NAME@$HOST:$REMOTE_DIR/app.jar.new"
+
+    - name: systemd 재기동 + 헬스체크 → ${{ inputs.host }}
+      shell: bash
+      env:
+        HOST: ${{ inputs.host }}
+        USER_NAME: ${{ inputs.user }}
+        APP_NAME: ${{ inputs.app-name }}
+        REMOTE_DIR: ${{ inputs.remote-dir }}
+        JAVA_PATH: ${{ inputs.java-path }}
+        SPRING_PROFILE: ${{ inputs.spring-profile }}
+        APP_PORT: ${{ inputs.app-port }}
+        HEALTH_TIMEOUT: ${{ inputs.health-timeout }}
+      run: |
+        SSH_OPTS=(-i "$RUNNER_TEMP/deploy_key" -o StrictHostKeyChecking=accept-new
+                  -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -o ConnectTimeout=10)
+        ssh "${SSH_OPTS[@]}" "$USER_NAME@$HOST" \
+          env APP_NAME="$APP_NAME" REMOTE_DIR="$REMOTE_DIR" JAVA_PATH="$JAVA_PATH" \
+              SPRING_PROFILE="$SPRING_PROFILE" APP_PORT="$APP_PORT" HEALTH_TIMEOUT="$HEALTH_TIMEOUT" \
+          bash -s < "$GITHUB_ACTION_PATH/deploy-remote.sh"
+
+    - name: SSH 키 정리
+      if: always()
+      shell: bash
+      run: rm -f "$RUNNER_TEMP/deploy_key" "$RUNNER_TEMP/known_hosts"

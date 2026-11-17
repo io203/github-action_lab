@@ -8,6 +8,14 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: read
+
+## 운영 배포(App Workflow)와 별개로, 롤백끼리는 동시에 돌지 않게
+concurrency:
+  group: rollback-prod
+  cancel-in-progress: false
+
 env:
   APP_NAME: github-action_lab
   REMOTE_USER: vagrant
@@ -18,6 +26,7 @@ env:
 jobs:
   rollback:
     runs-on: [self-hosted, global-runner]
+    timeout-minutes: 15
     environment: production ## 수동 승인 필요 (GitHub repo Settings > Environments)
     strategy:
       max-parallel: 1
@@ -27,78 +36,35 @@ jobs:
 
     steps:
       - name: 아티팩트 존재 확인 (app-${{ inputs.tag }}.jar)
+        id: artifact
+        env:
+          TAG: ${{ inputs.tag }}
         run: |
-          ARTIFACT="$HOME/build-artifacts/prod/app-${{ inputs.tag }}.jar"
+          # 태그 이름 검증 (경로 조작 방지)
+          [[ "$TAG" =~ ^RB[A-Za-z0-9._-]*$ ]] || { echo "::error::잘못된 태그 형식: $TAG"; exit 1; }
+          ARTIFACT="$HOME/build-artifacts/prod/app-$TAG.jar"
           if [ ! -f "$ARTIFACT" ]; then
-            echo " 아티팩트를 찾을 수 없습니다: $ARTIFACT"
-            echo ""
+            echo "::error::아티팩트를 찾을 수 없습니다: $ARTIFACT"
             echo "사용 가능한 버전 목록:"
             ls ~/build-artifacts/prod/ 2>/dev/null || echo "(없음)"
             exit 1
           fi
-          echo " 아티팩트 확인 완료: $ARTIFACT"
+          echo "jar=$ARTIFACT" >> "$GITHUB_OUTPUT"
+          echo "아티팩트 확인 완료: $ARTIFACT"
 
-      - name: SSH 키 설정
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          # VM 재생성 등으로 호스트 키가 변경된 경우 오래된 키 제거 후 재등록
-          ssh-keygen -R "${{ matrix.server }}" 2>/dev/null || true
-          echo "StrictHostKeyChecking accept-new" >> ~/.ssh/config
+      - name: 배포 액션 가져오기
+        uses: actions/checkout@v7.0.1
+        with:
+          sparse-checkout: .github/actions
 
-      - name: ${{ matrix.server }} 서버로 전송 (SCP)
-        run: |
-          ssh ${{ env.REMOTE_USER }}@${{ matrix.server }} "mkdir -p ${{ env.REMOTE_DIR }}"
-          scp ~/build-artifacts/prod/app-${{ inputs.tag }}.jar ${{ env.REMOTE_USER }}@${{ matrix.server }}:${{ env.REMOTE_DIR }}/app.jar
-
-      - name: ${{ matrix.server }} 롤백 배포 (SSH)
-        run: |
-          ssh ${{ env.REMOTE_USER }}@${{ matrix.server }} \
-            JAVA_PATH="${{ env.JAVA_PATH }}" \
-            SPRING_PROFILE="${{ env.PROD_SPRING_PROFILE }}" \
-            REMOTE_DIR="${{ env.REMOTE_DIR }}" \
-            ROLLBACK_TAG="${{ inputs.tag }}" \
-            'bash -s' << 'EOF'
-            echo "롤백 태그: $ROLLBACK_TAG"
-
-            # 1. 기존 앱 종료
-            fuser -k 8080/tcp || true
-            sleep 5
-
-            # 2. 롤백 버전 실행 (이전 로그 초기화 후 실행, disown으로 SSH 세션 종료 후에도 프로세스 유지)
-            > "$REMOTE_DIR/app.log"
-            nohup "$JAVA_PATH" \
-              -Dspring.profiles.active="$SPRING_PROFILE" \
-              -jar "$REMOTE_DIR/app.jar" > "$REMOTE_DIR/app.log" 2>&1 & disown
-
-            # 3. 초기 기동 에러 빠른 감지 (포트 충돌, 설정 오류 등 즉시 실패)
-            sleep 3
-            if grep -q "APPLICATION FAILED TO START\|Port.*already in use\|Unable to start" "$REMOTE_DIR/app.log" 2>/dev/null; then
-              echo "롤백 실패! 원인:"
-              tail -30 "$REMOTE_DIR/app.log"
-              exit 1
-            fi
-
-            # 4. 헬스 체크 (최대 60초)
-            for i in {1..12}; do
-              if curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
-                echo "롤백 성공! ($ROLLBACK_TAG)"
-                exit 0
-              fi
-              # 헬스체크 대기 중 치명적 에러 감지 시 즉시 중단
-              if grep -q "APPLICATION FAILED TO START\|Port.*already in use" "$REMOTE_DIR/app.log" 2>/dev/null; then
-                echo "롤백 실패! 원인:"
-                tail -30 "$REMOTE_DIR/app.log"
-                exit 1
-              fi
-              echo "기동 대기 중... ($i/12)"
-              sleep 5
-            done
-            echo "롤백 실패!"
-            exit 1
-          EOF
-
-      - name: SSH 키 정리
-        if: always()
-        run: rm -f ~/.ssh/id_rsa
+      - name: ${{ matrix.server }} 롤백 배포 (systemd)
+        uses: ./.github/actions/deploy-systemd
+        with:
+          host: ${{ matrix.server }}
+          user: ${{ env.REMOTE_USER }}
+          ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          jar: ${{ steps.artifact.outputs.jar }}
+          app-name: ${{ env.APP_NAME }}
+          remote-dir: ${{ env.REMOTE_DIR }}
+          java-path: ${{ env.JAVA_PATH }}
+          spring-profile: ${{ env.PROD_SPRING_PROFILE }}

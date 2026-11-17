@@ -20,6 +20,10 @@
 		<maven.compiler.source>25</maven.compiler.source>
 		<maven.compiler.target>25</maven.compiler.target>
 
+		<!-- application.yml 의 @app.build.timestamp@ 치환용 (배너에 빌드 시각 표시, UTC) -->
+		<maven.build.timestamp.format>yyyy-MM-dd HH:mm:ss'Z'</maven.build.timestamp.format>
+		<app.build.timestamp>${maven.build.timestamp}</app.build.timestamp>
+
 		<!-- 품질 도구 버전 -->
 		<checkstyle-plugin.version>3.6.0</checkstyle-plugin.version>
 		<checkstyle.version>14.4.0</checkstyle.version>
