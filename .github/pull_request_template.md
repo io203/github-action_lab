@@ -14,7 +14,10 @@ Squash and merge 시 PR 제목이 그대로 develop/main 의 커밋 메시지가
 <!-- 리뷰어가 확인하는 방법: 실행 명령, 호출할 API, 기대 결과 -->
 
 ## 리뷰어에게
-<!-- 특히 봐 줬으면 하는 부분, 고민한 대안 -->
+<!-- 특히 봐 줬으면 하는 부분, 고민한 대안
+     리뷰 코멘트는 Conventional Comments 라벨로: issue / suggestion / question / nitpick / praise ...
+     (docs/code-review-guide.md) -->
+
 
 ## 체크리스트
 - [ ] PR 제목이 Conventional Commits 형식이다 (예: `feat(api): …`)
